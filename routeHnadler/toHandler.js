@@ -7,7 +7,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const router = express.Router();
-const todoSchema = require('../modal/tofoSchema');
+const todoSchema = require('../modal/todoSchema');
+const userSchema = require('../modal/userSchema');
 
 // middleware to protect
 const checkLogin = require('../middleware/checkLogin');
@@ -15,63 +16,15 @@ const checkLogin = require('../middleware/checkLogin');
 // ?make modal todo
 // eslint-disable-next-line new-cap
 const Todo = new mongoose.model('Todo', todoSchema);
-
-// ?Instance Methods, Static & Query Helpers -----------------------------
-
-// !Instance Methods
-// get active todo
-router.get('/active', async (req, res) => {
-  const todo = new Todo();
-  const data = await todo.findActive();
-  res.status(200).json({ data });
-});
-
-// get active todo with callback
-router.get('/activeCall', (req, res) => {
-  const todo = new Todo();
-  todo.findActiveCallBack((err, data) => {
-    if (!err) {
-      res.status(200).json({ data });
-    }
-  });
-});
-
-// ! Static methods
-// get find by js
-router.get('/js', async (req, res) => {
-  const data = await Todo.findByJs();
-  res.status(200).json({
-    data,
-  });
-});
-
-// ! query helper
-// get find by language
-router.get('/language', async (req, res) => {
-  const data = await Todo.find().byLanguage('react');
-  res.status(200).json({
-    data,
-  });
-});
-
-// get all todo
-// router.get('/', async (req, res) => {
-//   await Todo.find({ status: 'active' }, (err, todo) => {
-//     if (!err) {
-//       res.status(200).json({
-//         result: todo,
-//       });
-//     } else {
-//       res.status(500).json({ error: 'there is a server side error' });
-//     }
-//   });
-// });
+// eslint-disable-next-line new-cap
+const User = new mongoose.model('User', userSchema);
 
 // get todo list to condition
 router.get('/', checkLogin, (req, res) => {
   console.log(req.username);
   console.log(req.userid);
   Todo.find({ status: 'active' })
+    .populate('user', 'name username -_id') // ? user er shate relation make kore
     .select({
       _id: 0,
       __v: 0,
@@ -103,10 +56,21 @@ router.get('/:id', async (req, res) => {
 });
 
 // post todo
-router.post('/', async (req, res) => {
+router.post('/', checkLogin, async (req, res) => {
   try {
-    const newTodo = new Todo(req.body);
-    await newTodo.save();
+    const newTodo = new Todo({ ...req.body, user: req.userid });
+    const todo = await newTodo.save();
+    await User.updateOne(
+      {
+        _id: req.userid,
+      },
+      {
+        $push: {
+          todos: todo._id,
+        },
+      }
+    );
+
     res.status(200).json({
       message: 'Todo wase inserted Successfully',
     });
@@ -127,27 +91,6 @@ router.post('/all', async (req, res) => {
     }
   });
 });
-
-// update  todo
-// router.put('/:id', async (req, res) => {
-//   await Todo.updateOne(
-//     { _id: req.params.id },
-//     {
-//       $set: {
-//         status: 'active',
-//       },
-//     },
-//     (err) => {
-//       if (!err) {
-//         res.status(200).json({
-//           message: 'Todo was update Successfully',
-//         });
-//       } else {
-//         res.status(500).json({ error: 'there is a server side error' });
-//       }
-//     }
-//   );
-// });
 
 // find by update and id
 router.put('/:id', async (req, res) => {
